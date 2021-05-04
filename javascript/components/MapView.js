@@ -6,23 +6,27 @@ import {
   NativeModules,
   requireNativeComponent,
 } from 'react-native';
-import _ from 'underscore';
+import {debounce} from 'debounce';
 
 import {makePoint, makeLatLngBounds} from '../utils/geoUtils';
 import {
   isFunction,
   isNumber,
-  runNativeCommand,
   toJSONString,
   isAndroid,
   viewPropTypes,
 } from '../utils';
 import {getFilter} from '../utils/filterUtils';
+import Logger from '../utils/Logger';
 
 import NativeBridgeComponent from './NativeBridgeComponent';
-import Camera from './Camera';
 
 const MapboxGL = NativeModules.MGLModule;
+if (MapboxGL == null) {
+  console.error(
+    'Native part of Mapbox React Native libraries were not registered properly, double check our native installation guides.',
+  );
+}
 
 export const NATIVE_MODULE_NAME = 'RCTMGLMapView';
 
@@ -35,24 +39,9 @@ const styles = StyleSheet.create({
 /**
  * MapView backed by Mapbox Native GL
  */
-class MapView extends NativeBridgeComponent {
+class MapView extends NativeBridgeComponent(React.Component) {
   static propTypes = {
     ...viewPropTypes,
-
-    /**
-     * Shows the users location on the map
-     */
-    showUserLocation: PropTypes.bool,
-
-    /**
-     * The mode used to track the user location on the map
-     */
-    userTrackingMode: PropTypes.number,
-
-    /**
-     * The vertical alignment of the user location within in map. This is only enabled while tracking the users location.
-     */
-    userLocationVerticalAlignment: PropTypes.number,
 
     /**
      * The distance from the edges of the map view’s frame to the edges of the map view’s logical viewport.
@@ -71,6 +60,17 @@ class MapView extends NativeBridgeComponent {
      * Style URL for map
      */
     styleURL: PropTypes.string,
+
+    /**
+     * iOS: The preferred frame rate at which the map view is rendered.
+     * The default value for this property is MGLMapViewPreferredFramesPerSecondDefault,
+     * which will adaptively set the preferred frame rate based on the capability of
+     * the user’s device to maintain a smooth experience. This property can be set to arbitrary integer values.
+     *
+     * Android: The maximum frame rate at which the map view is rendered, but it can't excess the ability of device hardware.
+     * This property can be set to arbitrary integer values.
+     */
+    preferredFramesPerSecond: PropTypes.number,
 
     /**
      * Automatically change the language of the map labels to the system’s preferred language,
@@ -112,6 +112,22 @@ class MapView extends NativeBridgeComponent {
     attributionEnabled: PropTypes.bool,
 
     /**
+     * Adds attribution offset, e.g. `{top: 8, left: 8}` will put attribution button in top-left corner of the map
+     */
+    attributionPosition: PropTypes.oneOfType([
+      PropTypes.shape({top: PropTypes.number, left: PropTypes.number}),
+      PropTypes.shape({top: PropTypes.number, right: PropTypes.number}),
+      PropTypes.shape({bottom: PropTypes.number, left: PropTypes.number}),
+      PropTypes.shape({bottom: PropTypes.number, right: PropTypes.number}),
+    ]),
+
+    /**
+     * MapView's tintColor - ios only
+     * @platform ios
+     */
+    tintColor: PropTypes.oneOfType([PropTypes.string, PropTypes.array]),
+
+    /**
      * Enable/Disable the logo on the map.
      */
     logoEnabled: PropTypes.bool,
@@ -120,6 +136,16 @@ class MapView extends NativeBridgeComponent {
      * Enable/Disable the compass from appearing on the map
      */
     compassEnabled: PropTypes.bool,
+
+    /**
+     * Change corner of map the compass starts at. 0: TopLeft, 1: TopRight, 2: BottomLeft, 3: BottomRight
+     */
+    compassViewPosition: PropTypes.number,
+
+    /**
+     * Add margins to the compass with x and y values
+     */
+    compassViewMargins: PropTypes.object,
 
     /**
      * [Android only] Enable/Disable use of GLSurfaceView insted of TextureView.
@@ -203,6 +229,11 @@ class MapView extends NativeBridgeComponent {
     onDidFinishRenderingMapFully: PropTypes.func,
 
     /**
+     * This event is triggered when the user location is updated.
+     */
+    onUserLocationUpdate: PropTypes.func,
+
+    /**
      * This event is triggered when a style has finished loading.
      */
     onDidFinishLoadingStyle: PropTypes.func,
@@ -232,7 +263,10 @@ class MapView extends NativeBridgeComponent {
   };
 
   constructor(props) {
-    super(props);
+    super(props, NATIVE_MODULE_NAME);
+
+    this.logger = Logger.sharedInstance();
+    this.logger.start();
 
     this.state = {
       isReady: null,
@@ -248,18 +282,16 @@ class MapView extends NativeBridgeComponent {
     this._onLayout = this._onLayout.bind(this);
 
     // debounced map change methods
-    this._onDebouncedRegionWillChange = _.debounce(
+    this._onDebouncedRegionWillChange = debounce(
       this._onRegionWillChange.bind(this),
       props.regionWillChangeDebounceTime,
       true,
     );
 
-    this._onDebouncedRegionDidChange = _.debounce(
+    this._onDebouncedRegionDidChange = debounce(
       this._onRegionDidChange.bind(this),
       props.regionDidChangeDebounceTime,
     );
-
-    this._preRefMapMethodQueue = [];
   }
 
   componentDidMount() {
@@ -267,11 +299,12 @@ class MapView extends NativeBridgeComponent {
   }
 
   componentWillUnmount() {
-    this._onDebouncedRegionWillChange.cancel();
-    this._onDebouncedRegionDidChange.cancel();
+    this._onDebouncedRegionWillChange.clear();
+    this._onDebouncedRegionDidChange.clear();
+    this.logger.stop();
   }
 
-  componentWillReceiveProps(nextProps) {
+  UNSAFE_componentWillReceiveProps(nextProps) {
     this._setHandledMapChangedEvents(nextProps);
   }
 
@@ -279,36 +312,54 @@ class MapView extends NativeBridgeComponent {
     if (isAndroid()) {
       const events = [];
 
-      if (props.onRegionWillChange)
+      if (props.onRegionWillChange) {
         events.push(MapboxGL.EventTypes.RegionWillChange);
-      if (props.onRegionIsChanging)
+      }
+      if (props.onRegionIsChanging) {
         events.push(MapboxGL.EventTypes.RegionIsChanging);
-      if (props.onRegionDidChange)
+      }
+      if (props.onRegionDidChange) {
         events.push(MapboxGL.EventTypes.RegionDidChange);
-      if (props.onUserLocationUpdate)
+      }
+      if (props.onUserLocationUpdate) {
         events.push(MapboxGL.EventTypes.UserLocationUpdated);
-      if (props.onWillStartLoadingMap)
+      }
+      if (props.onWillStartLoadingMap) {
         events.push(MapboxGL.EventTypes.WillStartLoadingMap);
-      if (props.onDidFinishLoadingMap)
+      }
+      if (props.onDidFinishLoadingMap) {
         events.push(MapboxGL.EventTypes.DidFinishLoadingMap);
-      if (props.onDidFailLoadingMap)
+      }
+      if (props.onDidFailLoadingMap) {
         events.push(MapboxGL.EventTypes.DidFailLoadingMap);
-      if (props.onWillStartRenderingFrame)
+      }
+      if (props.onWillStartRenderingFrame) {
         events.push(MapboxGL.EventTypes.WillStartRenderingFrame);
-      if (props.onDidFinishRenderingFrame)
+      }
+      if (props.onDidFinishRenderingFrame) {
         events.push(MapboxGL.EventTypes.DidFinishRenderingFrame);
-      if (props.onDidFinishRenderingFrameFully)
+      }
+      if (props.onDidFinishRenderingFrameFully) {
         events.push(MapboxGL.EventTypes.DidFinishRenderingFrameFully);
-      if (props.onWillStartRenderingMap)
+      }
+      if (props.onWillStartRenderingMap) {
         events.push(MapboxGL.EventTypes.WillStartRenderingMap);
-      if (props.onDidFinishRenderingMap)
+      }
+      if (props.onDidFinishRenderingMap) {
         events.push(MapboxGL.EventTypes.DidFinishRenderingMap);
-      if (props.onDidFinishRenderingMapFully)
+      }
+      if (props.onDidFinishRenderingMapFully) {
         events.push(MapboxGL.EventTypes.DidFinishRenderingMapFully);
-      if (props.onDidFinishLoadingStyle)
+      }
+      if (props.onDidFinishLoadingStyle) {
         events.push(MapboxGL.EventTypes.DidFinishLoadingStyle);
+      }
 
-      this._runNativeCommand('setHandledMapChangedEvents', events);
+      this._runNativeCommand(
+        'setHandledMapChangedEvents',
+        this._nativeRef,
+        events,
+      );
     }
   }
 
@@ -322,7 +373,11 @@ class MapView extends NativeBridgeComponent {
    * @return {Array}
    */
   async getPointInView(coordinate) {
-    const res = await this._runNativeCommand('getPointInView', [coordinate]);
+    const res = await this._runNativeCommand(
+      'getPointInView',
+      this._nativeRef,
+      [coordinate],
+    );
     return res.pointInView;
   }
 
@@ -336,7 +391,11 @@ class MapView extends NativeBridgeComponent {
    * @return {Array}
    */
   async getCoordinateFromView(point) {
-    const res = await this._runNativeCommand('getCoordinateFromView', [point]);
+    const res = await this._runNativeCommand(
+      'getCoordinateFromView',
+      this._nativeRef,
+      [point],
+    );
     return res.coordinateFromView;
   }
 
@@ -349,7 +408,10 @@ class MapView extends NativeBridgeComponent {
    * @return {Array}
    */
   async getVisibleBounds() {
-    const res = await this._runNativeCommand('getVisibleBounds');
+    const res = await this._runNativeCommand(
+      'getVisibleBounds',
+      this._nativeRef,
+    );
     return res.visibleBounds;
   }
 
@@ -369,11 +431,11 @@ class MapView extends NativeBridgeComponent {
       throw new Error('Must pass in valid coordinate[lng, lat]');
     }
 
-    const res = await this._runNativeCommand('queryRenderedFeaturesAtPoint', [
-      coordinate,
-      getFilter(filter),
-      layerIDs,
-    ]);
+    const res = await this._runNativeCommand(
+      'queryRenderedFeaturesAtPoint',
+      this._nativeRef,
+      [coordinate, getFilter(filter), layerIDs],
+    );
 
     if (isAndroid()) {
       return JSON.parse(res.data);
@@ -400,11 +462,11 @@ class MapView extends NativeBridgeComponent {
         'Must pass in a valid bounding box[top, right, bottom, left]',
       );
     }
-    const res = await this._runNativeCommand('queryRenderedFeaturesInRect', [
-      bbox,
-      getFilter(filter),
-      layerIDs,
-    ]);
+    const res = await this._runNativeCommand(
+      'queryRenderedFeaturesInRect',
+      this._nativeRef,
+      [bbox, getFilter(filter), layerIDs],
+    );
 
     if (isAndroid()) {
       return JSON.parse(res.data);
@@ -416,7 +478,7 @@ class MapView extends NativeBridgeComponent {
   /**
    * Map camera will perform updates based on provided config. Deprecated use Camera#setCamera.
    */
-  setCamera(config = {}) {
+  setCamera() {
     console.warn(
       'MapView.setCamera is deprecated - please use Camera#setCamera',
     );
@@ -428,7 +490,9 @@ class MapView extends NativeBridgeComponent {
    * @return {String}
    */
   async takeSnap(writeToDisk = false) {
-    const res = await this._runNativeCommand('takeSnap', [writeToDisk]);
+    const res = await this._runNativeCommand('takeSnap', this._nativeRef, [
+      writeToDisk,
+    ]);
     return res.uri;
   }
 
@@ -442,7 +506,7 @@ class MapView extends NativeBridgeComponent {
    */
 
   async getZoom() {
-    const res = await this._runNativeCommand('getZoom');
+    const res = await this._runNativeCommand('getZoom', this._nativeRef);
     return res.zoom;
   }
 
@@ -455,8 +519,26 @@ class MapView extends NativeBridgeComponent {
    * @return {Array<Number>} Coordinates
    */
   async getCenter() {
-    const res = await this._runNativeCommand('getCenter');
+    const res = await this._runNativeCommand('getCenter', this._nativeRef);
     return res.center;
+  }
+
+  /**
+   * Sets the visibility of all the layers referencing the specified `sourceLayerId` and/or `sourceId`
+   *
+   * @example
+   * await this._map.setSourceVisibility(false, 'composite', 'building')
+   *
+   * @param {boolean} visible - Visibility of the layers
+   * @param {String} sourceId - Identifier of the target source (e.g. 'composite')
+   * @param {String=} sourceLayerId - Identifier of the target source-layer (e.g. 'building')
+   */
+  setSourceVisibility(visible, sourceId, sourceLayerId = undefined) {
+    this._runNativeCommand('setSourceVisibility', this._nativeRef, [
+      visible,
+      sourceId,
+      sourceLayerId,
+    ]);
   }
 
   /**
@@ -464,33 +546,7 @@ class MapView extends NativeBridgeComponent {
    * If you implement a custom attribution button, you should add this action to the button.
    */
   showAttribution() {
-    return this._runNativeCommand('showAttribution');
-  }
-
-  _runNativeCommand(methodName, args = []) {
-    if (!this._nativeRef) {
-      return new Promise(resolve => {
-        this._preRefMapMethodQueue.push({
-          method: {name: methodName, args},
-          resolver: resolve,
-        });
-      });
-    }
-
-    if (isAndroid()) {
-      return new Promise(resolve => {
-        const callbackID = `${Date.now()}`;
-        this._addAddAndroidCallback(callbackID, resolve);
-        args.unshift(callbackID);
-        runNativeCommand(NATIVE_MODULE_NAME, methodName, this._nativeRef, args);
-      });
-    }
-    return super._runNativeCommand(
-      NATIVE_MODULE_NAME,
-      this._nativeRef,
-      methodName,
-      args,
-    );
+    return this._runNativeCommand('showAttribution', this._nativeRef);
   }
 
   _createStopConfig(config = {}) {
@@ -525,26 +581,6 @@ class MapView extends NativeBridgeComponent {
     }
 
     return stopConfig;
-  }
-
-  _addAddAndroidCallback(id, callback) {
-    this._callbackMap.set(id, callback);
-  }
-
-  _removeAndroidCallback(id) {
-    this._callbackMap.remove(id);
-  }
-
-  _onAndroidCallback(e) {
-    const callbackID = e.nativeEvent.type;
-    const callback = this._callbackMap.get(callbackID);
-
-    if (!callback) {
-      return;
-    }
-
-    this._callbackMap.delete(callbackID);
-    callback.call(null, e.nativeEvent.payload);
   }
 
   _onPress(e) {
@@ -686,20 +722,9 @@ class MapView extends NativeBridgeComponent {
     return this.props.contentInset;
   }
 
-  async _setNativeRef(nativeRef) {
+  _setNativeRef(nativeRef) {
     this._nativeRef = nativeRef;
-
-    while (this._preRefMapMethodQueue.length > 0) {
-      const item = this._preRefMapMethodQueue.pop();
-
-      if (item && item.method && item.resolver) {
-        const res = await this._runNativeCommand(
-          item.method.name,
-          item.method.args,
-        );
-        item.resolver(res);
-      }
-    }
+    super._runPendingNativeCommands(nativeRef);
   }
 
   setNativeProps(props) {
@@ -716,12 +741,11 @@ class MapView extends NativeBridgeComponent {
     };
 
     const callbacks = {
-      ref: nativeRef => this._setNativeRef(nativeRef),
+      ref: (nativeRef) => this._setNativeRef(nativeRef),
       onPress: this._onPress,
       onLongPress: this._onLongPress,
       onMapChange: this._onChange,
       onAndroidCallback: isAndroid() ? this._onAndroidCallback : undefined,
-      onUserTrackingModeChange: this.props.onUserTrackingModeChange,
     };
 
     let mapView = null;
@@ -740,7 +764,11 @@ class MapView extends NativeBridgeComponent {
     }
 
     return (
-      <View onLayout={this._onLayout} style={this.props.style}>
+      <View
+        onLayout={this._onLayout}
+        style={this.props.style}
+        testID={mapView ? null : this.props.testID}
+      >
         {mapView}
       </View>
     );

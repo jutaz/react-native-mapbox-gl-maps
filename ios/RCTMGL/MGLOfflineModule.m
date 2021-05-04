@@ -113,6 +113,32 @@ RCT_EXPORT_METHOD(createPack:(NSDictionary *)options
                                               }];
 }
 
+RCT_EXPORT_METHOD(mergeOfflineRegions:(NSString *)path
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    NSString *absolutePath;
+    if ([path isAbsolutePath]) {
+        absolutePath = path;
+    } else {
+        NSBundle *mainBundle = [NSBundle mainBundle];
+        NSString *fileName = [path stringByDeletingPathExtension];
+        NSString *extension = [path pathExtension];
+        absolutePath = [mainBundle pathForResource:fileName ofType:extension];
+        if (!absolutePath) {
+            return reject(@"asset_does_not_exist", [NSString stringWithFormat:@"The given assetName, %@, can't be found in the app's bundle.", path], nil);
+        }
+    }
+    
+    [[MGLOfflineStorage sharedOfflineStorage] addContentsOfFile:absolutePath withCompletionHandler:^(NSURL *fileURL, NSArray<MGLOfflinePack *> *packs, NSError *error) {
+        if (error != nil) {
+            reject(@"mergeOfflineRegions", error.description, error);
+            return;
+        }
+        resolve(nil);
+    }];
+}
+
 RCT_EXPORT_METHOD(getPacks:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
 {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -120,12 +146,60 @@ RCT_EXPORT_METHOD(getPacks:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseR
         
         if (packs == nil) {
             // packs have not loaded yet
-            [packRequestQueue addObject:resolve];
+            [self->packRequestQueue addObject:resolve];
             return;
         }
 
         resolve([self _convertPacksToJson:packs]);
     });
+}
+
+RCT_EXPORT_METHOD(invalidateAmbientCache:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [[MGLOfflineStorage sharedOfflineStorage] invalidateAmbientCacheWithCompletionHandler:^(NSError *error) {
+        if (error != nil) {
+            reject(@"invalidateAmbientCache", error.description, error);
+            return;
+        }
+        resolve(nil);
+    }];
+}
+
+RCT_EXPORT_METHOD(clearAmbientCache:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [[MGLOfflineStorage sharedOfflineStorage] clearAmbientCacheWithCompletionHandler:^(NSError *error) {
+        if (error != nil) {
+            reject(@"clearAmbientCache", error.description, error);
+            return;
+        }
+        resolve(nil);
+    }];
+}
+
+RCT_EXPORT_METHOD(setMaximumAmbientCacheSize:(NSUInteger)cacheSize
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [[MGLOfflineStorage sharedOfflineStorage] setMaximumAmbientCacheSize:cacheSize withCompletionHandler:^(NSError *error) {
+        if (error != nil) {
+            reject(@"setMaximumAmbientCacheSize", error.description, error);
+            return;
+        }
+        resolve(nil);
+    }];
+    
+}
+
+RCT_EXPORT_METHOD(resetDatabase:(RCTPromiseResolveBlock)resolve rejecter:(RCTPromiseRejectBlock)reject)
+{
+    [[MGLOfflineStorage sharedOfflineStorage] resetDatabaseWithCompletionHandler:^(NSError *error) {
+        if (error != nil) {
+            reject(@"resetDatabase", error.description, error);
+            return;
+        }
+        resolve(nil);
+    }];
+    
 }
 
 RCT_EXPORT_METHOD(getPackStatus:(NSString *)name
@@ -141,6 +215,25 @@ RCT_EXPORT_METHOD(getPackStatus:(NSString *)name
     }
     
     resolve([self _makeRegionStatusPayload:name pack:pack]);
+}
+
+RCT_EXPORT_METHOD(invalidatePack:(NSString *)name
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    MGLOfflinePack *pack = [self _getPackFromName:name];
+
+    if (pack == nil) {
+        resolve(nil);
+        return;
+    }
+    [[MGLOfflineStorage sharedOfflineStorage] invalidatePack:pack  withCompletionHandler:^(NSError *error) {
+        if (error != nil) {
+            reject(@"invalidatePack", error.description, error);
+            return;
+        }
+        resolve(nil);
+    }];
 }
 
 RCT_EXPORT_METHOD(deletePack:(NSString *)name
@@ -292,6 +385,10 @@ RCT_EXPORT_METHOD(setProgressEventThrottle:(nonnull NSNumber *)throttleValue)
     // }
     if ([data isKindOfClass:[NSDictionary class]]) {
         return data;
+    }
+    
+    if (data == nil) {
+        return @{};
     }
     
     return [NSJSONSerialization JSONObjectWithData:[data dataUsingEncoding:NSUTF8StringEncoding]

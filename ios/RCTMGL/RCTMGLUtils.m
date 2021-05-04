@@ -93,7 +93,7 @@ static double const MS_TO_S = 0.001;
     [RCTMGLImageQueue.sharedInstance addImage:url scale:scale bridge:bridge completionHandler:callback];
 }
 
-+ (void)fetchImages:(RCTBridge *)bridge style:(MGLStyle *)style objects:(NSDictionary<NSString *, NSString *>*)objects forceUpdate:(BOOL)forceUpdate callback:(void (^)())callback
++ (void)fetchImages:(RCTBridge *)bridge style:(MGLStyle *)style objects:(NSDictionary<NSString *, id>*)objects forceUpdate:(BOOL)forceUpdate callback:(void (^)(void))callback
 {
     if (objects == nil) {
         callback();
@@ -109,7 +109,7 @@ static double const MS_TO_S = 0.001;
     __block NSUInteger imagesLeftToLoad = imageNames.count;
     __weak MGLStyle *weakStyle = style;
     
-    void (^imageLoadedBlock)() = ^{
+    void (^imageLoadedBlock)(void) = ^{
         imagesLeftToLoad--;
         
         if (imagesLeftToLoad == 0) {
@@ -121,7 +121,10 @@ static double const MS_TO_S = 0.001;
         UIImage *foundImage = forceUpdate ? nil : [style imageForName:imageName];
         
         if (forceUpdate || foundImage == nil) {
-            [RCTMGLImageQueue.sharedInstance addImage:objects[imageName] scale:1.0 bridge:bridge completionHandler:^(NSError *error, UIImage *image) {
+            NSDictionary* image = objects[imageName];
+            BOOL hasScale = [image isKindOfClass:[NSDictionary class]] && ([image objectForKey:@"scale"] != nil);
+            double scale = hasScale ? [[image objectForKey:@"scale"] doubleValue] : 1.0;
+            [RCTMGLImageQueue.sharedInstance addImage:objects[imageName] scale:scale bridge:bridge completionHandler:^(NSError *error, UIImage *image) {
               if (!image) {
                 RCTLogWarn(@"Failed to fetch image: %@ error:%@", imageName, error);
               }

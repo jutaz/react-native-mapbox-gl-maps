@@ -56,14 +56,17 @@ class PulseCircleLayer extends React.Component {
       Animated.timing(this.state.pulseOpacity, {
         toValue: 0,
         duration: this.props.duration,
+        useNativeDriver: false,
       }),
       Animated.timing(this.state.pulseRadius, {
         toValue: this.props.pulseRadius,
         duration: this.props.duration,
+        useNativeDriver: false,
       }),
       Animated.timing(this.state.innerRadius, {
         toValue: this.props.radius * 0.7,
         duration: this.props.duration / 2,
+        useNativeDriver: false,
       }),
     ]);
 
@@ -71,10 +74,12 @@ class PulseCircleLayer extends React.Component {
       Animated.timing(this.state.pulseRadius, {
         toValue: this.props.radius,
         duration: this.props.duration / 2,
+        useNativeDriver: false,
       }),
       Animated.timing(this.state.innerRadius, {
         toValue: this.props.radius * 0.5,
         duration: this.props.duration / 2,
+        useNativeDriver: false,
       }),
     ]);
 
@@ -119,8 +124,7 @@ class PulseCircleLayer extends React.Component {
     return (
       <MapboxGL.Animated.ShapeSource
         id="pulseCircleSource"
-        shape={this.props.shape}
-      >
+        shape={this.props.shape}>
         <MapboxGL.Animated.CircleLayer
           id="pulseOuterCircle"
           style={outerCircleStyle}

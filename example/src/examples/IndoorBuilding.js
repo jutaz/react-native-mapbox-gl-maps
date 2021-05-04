@@ -12,8 +12,8 @@ import BaseExamplePropTypes from './common/BaseExamplePropTypes';
 
 const styles = StyleSheet.create({
   slider: {
-    flex: 1,
     alignItems: 'stretch',
+    flex: 1,
     justifyContent: 'center',
     maxHeight: 60,
     paddingHorizontal: 24,
@@ -53,9 +53,8 @@ class IndoorBuilding extends React.Component {
     return (
       <Page {...this.props}>
         <MapboxGL.MapView
-          ref={ref => (this.map = ref)}
-          style={sheet.matchParent}
-        >
+          ref={(ref) => (this.map = ref)}
+          style={sheet.matchParent}>
           <MapboxGL.Camera
             zoomLevel={16}
             pitch={40}
@@ -67,8 +66,7 @@ class IndoorBuilding extends React.Component {
 
           <MapboxGL.ShapeSource
             id="indoorBuildingSource"
-            shape={indoorMapGeoJSON}
-          >
+            shape={indoorMapGeoJSON}>
             <MapboxGL.FillExtrusionLayer
               id="building3d"
               style={layerStyles.building}

@@ -2,11 +2,8 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import {NativeModules, requireNativeComponent} from 'react-native';
 
-import locationManager from '../modules/location/locationManager';
-import {isNumber, toJSONString, viewPropTypes, existenceChange} from '../utils';
+import {toJSONString, viewPropTypes, existenceChange} from '../utils';
 import * as geoUtils from '../utils/geoUtils';
-
-import NativeBridgeComponent from './NativeBridgeComponent';
 
 const MapboxGL = NativeModules.MGLModule;
 
@@ -28,15 +25,17 @@ const SettingsPropTypes = {
    */
   pitch: PropTypes.number,
 
-
+  /**
+   * Represents a rectangle in geographical coordinates marking the visible area of the map.
+   */
   bounds: PropTypes.shape({
     /**
-     * northEastCoordinates - North east coordinate of bound
+     * North east coordinate of bound
      */
     ne: PropTypes.arrayOf(PropTypes.number).isRequired,
 
     /**
-     * southWestCoordinates - North east coordinate of bound
+     * South west coordinate of bound
      */
     sw: PropTypes.arrayOf(PropTypes.number).isRequired,
 
@@ -59,6 +58,11 @@ const SettingsPropTypes = {
      * Bottom camera padding for bounds
      */
     paddingBottom: PropTypes.number,
+
+    /**
+     * Callback that is triggered on user tracking mode changes
+     */
+    onUserTrackingModeChange: PropTypes.func,
   }),
 
   /**
@@ -67,43 +71,90 @@ const SettingsPropTypes = {
   zoomLevel: PropTypes.number,
 };
 
-class Camera extends NativeBridgeComponent {
+class Camera extends React.Component {
   static propTypes = {
     ...viewPropTypes,
 
+    /**
+     * The duration a camera update takes (in ms)
+     */
     animationDuration: PropTypes.number,
 
+    /**
+     * The animationstyle when the camara updates. One of; `flyTo`, `easeTo`, `moveTo`
+     */
     animationMode: PropTypes.oneOf(['flyTo', 'easeTo', 'moveTo']),
 
-    // default - view settings
+    /**
+     * Default view settings applied on camera
+     */
     defaultSettings: PropTypes.shape(SettingsPropTypes),
 
     // normal - view settings
     ...SettingsPropTypes,
 
+    /**
+     * The minimun zoom level of the map
+     */
     minZoomLevel: PropTypes.number,
+
+    /**
+     * The maximun zoom level of the map
+     */
     maxZoomLevel: PropTypes.number,
 
-    // user tracking
+    /**
+     * Restrict map panning so that the center is within these bounds
+     */
+    maxBounds: PropTypes.shape({
+      /**
+       * northEastCoordinates - North east coordinate of bound
+       */
+      ne: PropTypes.arrayOf(PropTypes.number).isRequired,
+
+      /**
+       * southWestCoordinates - South west coordinate of bound
+       */
+      sw: PropTypes.arrayOf(PropTypes.number).isRequired,
+    }),
+
+    /**
+     * Should the map orientation follow the user's.
+     */
     followUserLocation: PropTypes.bool,
 
+    /**
+     * The mode used to track the user location on the map. One of; "normal", "compass", "course". Each mode string is also available as a member on the `MapboxGL.UserTrackingModes` object. `Follow` (normal), `FollowWithHeading` (compass), `FollowWithCourse` (course). NOTE: `followUserLocation` must be set to `true` for any of the modes to take effect. [Example](../example/src/examples/SetUserTrackingModes.js)
+     */
     followUserMode: PropTypes.oneOf(['normal', 'compass', 'course']),
 
+    /**
+     * The zoomLevel on map while followUserLocation is set to `true`
+     */
     followZoomLevel: PropTypes.number,
+
+    /**
+     * The pitch on map while followUserLocation is set to `true`
+     */
     followPitch: PropTypes.number,
+
+    /**
+     * The heading on map while followUserLocation is set to `true`
+     */
     followHeading: PropTypes.number,
 
-    // manual update
+    /**
+     * Manually update the camera - helpful for when props did not update, however you still want the camera to move
+     */
     triggerKey: PropTypes.any,
 
-    // position
-    alignment: PropTypes.arrayOf(PropTypes.number),
+    // Triggered when the
+    onUserTrackingModeChange: PropTypes.func,
   };
 
   static defaultProps = {
     animationMode: 'easeTo',
     animationDuration: 2000,
-    isUserInteraction: false,
   };
 
   static Mode = {
@@ -112,7 +163,7 @@ class Camera extends NativeBridgeComponent {
     Ease: 'easeTo',
   };
 
-  componentWillReceiveProps(nextProps) {
+  UNSAFE_componentWillReceiveProps(nextProps) {
     this._handleCameraChange(this.props, nextProps);
   }
 
@@ -230,10 +281,10 @@ class Camera extends NativeBridgeComponent {
       cB.ne[1] !== nB.ne[1] ||
       cB.sw[0] !== nB.sw[0] ||
       cB.sw[1] !== nB.sw[1] ||
-      cB.paddingTop != nB.paddingTop ||
-      cB.paddingLeft != nB.paddingLeft ||
-      cB.paddingRight != nB.paddingRight ||
-      cB.paddingBottom != nB.paddingBottom
+      cB.paddingTop !== nB.paddingTop ||
+      cB.paddingLeft !== nB.paddingLeft ||
+      cB.paddingRight !== nB.paddingRight ||
+      cB.paddingBottom !== nB.paddingBottom
     );
   }
 
@@ -291,7 +342,7 @@ class Camera extends NativeBridgeComponent {
         ...pad,
       },
       animationDuration,
-      animationMode: Camera.Mode.Move,
+      animationMode: Camera.Mode.Ease,
     });
   }
 
@@ -403,7 +454,7 @@ class Camera extends NativeBridgeComponent {
         ...this.props.defaultSettings,
         animationMode: Camera.Mode.Move,
       },
-      false,
+      true,
     );
     return this.defaultCamera;
   }
@@ -457,49 +508,12 @@ class Camera extends NativeBridgeComponent {
     }
   }
 
-  _getAlignment(coordinate, zoomLevel) {
-    const region = geoUtils.getOrCalculateVisibleRegion(
-      coordinate,
-      zoomLevel,
-      this.props._mapWidth,
-      this.props._mapHeight,
-      this.props._region,
-    );
-
-    const topLeftCorner = [region.sw[0], region.ne[1]];
-    const topRightCorner = [region.ne[0], region.ne[1]];
-    const bottomLeftCorner = [region.sw[0], region.sw[1]];
-
-    const verticalLineString = geoUtils.makeLineString([
-      topLeftCorner,
-      bottomLeftCorner,
-    ]);
-
-    const horizontalLineString = geoUtils.makeLineString([
-      topLeftCorner,
-      topRightCorner,
-    ]);
-
-    const distVertical = geoUtils.calculateDistance(
-      topLeftCorner,
-      bottomLeftCorner,
-    );
-    const distHorizontal = geoUtils.calculateDistance(
-      topLeftCorner,
-      topRightCorner,
-    );
-
-    const verticalPoint = geoUtils.pointAlongLine(
-      verticalLineString,
-      distVertical * this.props.alignment[0],
-    );
-
-    const horizontalPoint = geoUtils.pointAlongLine(
-      horizontalLineString,
-      distHorizontal * this.props.alignment[1],
-    );
-
-    return [verticalPoint[0], horizontalPoint[1]];
+  _getMaxBounds() {
+    const bounds = this.props.maxBounds;
+    if (!bounds || !bounds.ne || !bounds.sw) {
+      return null;
+    }
+    return toJSONString(geoUtils.makeLatLngBounds(bounds.ne, bounds.sw));
   }
 
   render() {
@@ -511,15 +525,17 @@ class Camera extends NativeBridgeComponent {
 
     return (
       <RCTMGLCamera
+        testID="Camera"
         ref="camera"
         followUserLocation={this.props.followUserLocation}
         followUserMode={this.props.followUserMode}
-        followUserPitch={this.props.followUserPitch}
+        followPitch={this.props.followPitch}
         followHeading={this.props.followHeading}
         followZoomLevel={this.props.followZoomLevel}
         stop={this._createStopConfig(props)}
         maxZoomLevel={this.props.maxZoomLevel}
         minZoomLevel={this.props.minZoomLevel}
+        maxBounds={this._getMaxBounds()}
         defaultStop={this._createDefaultCamera()}
         {...callbacks}
       />

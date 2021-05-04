@@ -7,6 +7,7 @@
 //
 
 #import "RCTMGLPointAnnotation.h"
+#import "RCTMGLMapTouchEvent.h"
 #import "RCTMGLUtils.h"
 #import "UIView+React.h"
 
@@ -32,7 +33,7 @@ const float CENTER_Y_OFFSET_BASE = -0.5f;
         self.calloutView = (RCTMGLCallout *)subview;
         self.calloutView.representedObject = self;
     } else {
-        [super insertReactSubview:subview atIndex:atIndex];
+        [super insertReactSubview:subview atIndex:0];
     }
 }
 
@@ -85,11 +86,17 @@ const float CENTER_Y_OFFSET_BASE = -0.5f;
 
     if (_map != nil) {
         if (_reactSelected) {
-            [_map selectAnnotation:self animated:NO];
+            [_map selectAnnotation:self animated:NO completionHandler:nil];
         } else {
             [_map deselectAnnotation:self animated:NO];
         }
     }
+}
+
+- (void)setReactDraggable:(BOOL)reactDraggable
+{
+    _reactDraggable = reactDraggable;
+    self.draggable = _reactDraggable;
 }
 
 - (void)setReactCoordinate:(NSString *)reactCoordinate
@@ -126,7 +133,10 @@ const float CENTER_Y_OFFSET_BASE = -0.5f;
     } else {
         // custom view
         self.enabled = YES;
-        self.layer.zPosition = [self _getZPosition];
+        const CGFloat defaultZPosition = 0.0;
+        if (self.layer.zPosition == defaultZPosition) {
+            self.layer.zPosition = [self _getZPosition];
+        }
         [self addGestureRecognizer:customViewTap];
         return self;
     }
@@ -140,7 +150,7 @@ const float CENTER_Y_OFFSET_BASE = -0.5f;
 
 - (void)_handleTap:(UITapGestureRecognizer *)recognizer
 {
-    [_map selectAnnotation:self.annotation animated:NO];
+    [_map selectAnnotation:self animated:NO completionHandler:nil];
 }
 
 - (void)_setCenterOffset:(CGRect)frame
@@ -198,13 +208,45 @@ const float CENTER_Y_OFFSET_BASE = -0.5f;
 
     [_map addAnnotation:self];
     if (_reactSelected) {
-        [_map selectAnnotation:self animated:NO];
+        [_map selectAnnotation:self animated:NO completionHandler:nil];
     }
 }
 
 - (BOOL)_isFrameSet
 {
     return self.frame.size.width > 0 && self.frame.size.height > 0;
+}
+
+- (void)setDragState:(MGLAnnotationViewDragState)dragState animated:(BOOL)animated {
+    [super setDragState:dragState animated:animated];
+    switch (dragState) {
+        case MGLAnnotationViewDragStateStarting: {
+            if (self.onDragStart != nil) {
+                RCTMGLMapTouchEvent *event = [RCTMGLMapTouchEvent makeAnnotationTapEvent:self];
+                self.onDragStart([event toJSON]);
+            }
+            break;
+        }
+
+        case MGLAnnotationViewDragStateDragging:
+            if (self.onDrag != nil) {
+                RCTMGLMapTouchEvent *event = [RCTMGLMapTouchEvent makeAnnotationTapEventOnDrag:self];
+                self.onDrag([event toJSON]);
+            }
+            break;
+
+        case MGLAnnotationViewDragStateEnding:
+        case MGLAnnotationViewDragStateCanceling: {
+            if (self.onDragEnd != nil) {
+                RCTMGLMapTouchEvent *event = [RCTMGLMapTouchEvent makeAnnotationTapEvent:self];
+                self.onDragEnd([event toJSON]);
+            }
+            break;
+        }
+
+        case MGLAnnotationViewDragStateNone:
+            return;
+    }
 }
 
 @end

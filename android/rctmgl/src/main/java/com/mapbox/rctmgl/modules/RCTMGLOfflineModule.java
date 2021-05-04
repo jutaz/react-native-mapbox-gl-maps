@@ -13,6 +13,7 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.WritableNativeMap;
+import com.facebook.react.module.annotations.ReactModule;
 import com.facebook.react.modules.core.RCTNativeAppEventEmitter;
 import com.mapbox.geojson.FeatureCollection;
 // import com.mapbox.mapboxsdk.constants.Style;
@@ -42,8 +43,9 @@ import java.util.Locale;
  * Created by nickitaliano on 10/24/17.
  */
 
+@ReactModule(name = RCTMGLOfflineModule.REACT_CLASS)
 public class RCTMGLOfflineModule extends ReactContextBaseJavaModule {
-    public static final String REACT_CLASS = RCTMGLOfflineModule.class.getSimpleName();
+    public static final String REACT_CLASS = "RCTMGLOfflineModule";
 
     public static final int INACTIVE_REGION_DOWNLOAD_STATE = OfflineRegion.STATE_INACTIVE;
     public static final int ACTIVE_REGION_DOWNLOAD_STATE = OfflineRegion.STATE_ACTIVE;
@@ -120,6 +122,79 @@ public class RCTMGLOfflineModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
+    public void invalidateAmbientCache(final Promise promise) {
+        activateFileSource();
+        final OfflineManager offlineManager = OfflineManager.getInstance(mReactContext);
+        offlineManager.invalidateAmbientCache(new OfflineManager.FileSourceCallback() {
+            @Override
+            public void onSuccess() {
+                promise.resolve(null);
+            }
+
+            @Override
+            public void onError(String error) {
+                promise.reject("invalidateAmbientCache", error);
+            }
+        });
+    }
+
+    @ReactMethod
+    public void clearAmbientCache(final Promise promise) {
+        activateFileSource();
+
+        final OfflineManager offlineManager = OfflineManager.getInstance(mReactContext);
+
+        offlineManager.clearAmbientCache(new OfflineManager.FileSourceCallback() {
+            @Override
+            public void onSuccess() {
+                promise.resolve(null);
+            }
+
+            @Override
+            public void onError(String error) {
+                promise.reject("clearAmbientCache", error);
+            }
+        });
+    }
+
+    @ReactMethod
+    public void setMaximumAmbientCacheSize(int size, final Promise promise) {
+        activateFileSource();
+
+        final OfflineManager offlineManager = OfflineManager.getInstance(mReactContext);
+
+        offlineManager.setMaximumAmbientCacheSize(size, new OfflineManager.FileSourceCallback() {
+            @Override
+            public void onSuccess() {
+                promise.resolve(null);
+            }
+
+            @Override
+            public void onError(String error) {
+                promise.reject("setMaximumAmbientCacheSize", error);
+            }
+        });
+    }
+
+
+    @ReactMethod
+    public void resetDatabase(final Promise promise) {
+        activateFileSource();
+        final OfflineManager offlineManager = OfflineManager.getInstance(mReactContext);
+        offlineManager.resetDatabase(new OfflineManager.FileSourceCallback() {
+            @Override
+            public void onSuccess() {
+                promise.resolve(null);
+            }
+
+            @Override
+            public void onError(String error) {
+                promise.reject("resetDatabase", error);
+            }
+        });
+    }
+
+    @ReactMethod
     public void getPackStatus(final String name, final Promise promise) {
         activateFileSource();
 
@@ -178,6 +253,43 @@ public class RCTMGLOfflineModule extends ReactContextBaseJavaModule {
             @Override
             public void onError(String error) {
                 promise.reject("setPackObserver", error);
+            }
+        });
+    }
+
+    @ReactMethod
+    public void invalidatePack(final String name, final Promise promise) {
+        activateFileSource();
+
+        final OfflineManager offlineManager = OfflineManager.getInstance(mReactContext);
+
+        offlineManager.listOfflineRegions(new OfflineManager.ListOfflineRegionsCallback() {
+            @Override
+            public void onList(OfflineRegion[] offlineRegions) {
+                OfflineRegion region = getRegionByName(name, offlineRegions);
+
+                if (region == null) {
+                    promise.resolve(null);
+                    Log.w(REACT_CLASS, "invalidateRegion - Unknown offline region");
+                    return;
+                }
+
+                region.invalidate(new OfflineRegion.OfflineRegionInvalidateCallback() {
+                    @Override
+                    public void onInvalidate() {
+                        promise.resolve(null);
+                    }
+
+                    @Override
+                    public void onError(String error) {
+                        promise.reject("invalidateRegion", error);
+                    }
+                });
+            }
+
+            @Override
+            public void onError(String error) {
+                promise.reject("invalidateRegion", error);
             }
         });
     }
@@ -277,6 +389,25 @@ public class RCTMGLOfflineModule extends ReactContextBaseJavaModule {
             @Override
             public void onError(String error) {
                 promise.reject("resumeRegionDownload", error);
+            }
+        });
+    }
+
+    @ReactMethod
+    public void mergeOfflineRegions(final String path, final Promise promise) {
+        activateFileSource();
+
+        final OfflineManager offlineManager = OfflineManager.getInstance(mReactContext);
+
+        offlineManager.mergeOfflineRegions(path, new OfflineManager.MergeOfflineRegionsCallback() {
+            @Override
+            public void onMerge(OfflineRegion[] offlineRegions) {
+                promise.resolve(null);
+            }
+
+            @Override
+            public void onError(String error) {
+                promise.reject("mergeOfflineRegions", error);
             }
         });
     }

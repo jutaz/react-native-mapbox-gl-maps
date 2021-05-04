@@ -12,8 +12,8 @@ import BaseExamplePropTypes from './common/BaseExamplePropTypes';
 
 const styles = StyleSheet.create({
   slider: {
-    flex: 1,
     alignItems: 'stretch',
+    flex: 1,
     justifyContent: 'center',
     maxHeight: 60,
     paddingHorizontal: 24,
@@ -42,7 +42,9 @@ class WatercolorRasterTiles extends React.Component {
   render() {
     const rasterSourceProps = {
       id: 'stamenWatercolorSource',
-      url: 'https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.jpg',
+      tileUrlTemplates: [
+        'https://stamen-tiles.a.ssl.fastly.net/watercolor/{z}/{x}/{y}.jpg',
+      ],
       tileSize: 256,
     };
 

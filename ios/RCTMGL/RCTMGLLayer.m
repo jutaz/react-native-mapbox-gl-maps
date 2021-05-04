@@ -10,7 +10,6 @@
 #import "RCTMGLSource.h"
 #import "RCTMGLStyleValue.h"
 #import "RCTMGLUtils.h"
-#import "FilterParser.h"
 #import "RCTMGLMapView.h"
 
 @implementation RCTMGLLayer
@@ -68,19 +67,17 @@
     _layerIndex = layerIndex;
     if (_styleLayer != nil) {
         [self removeFromMap:_style];
-        [self insertAtIndex:(NSUInteger)_layerIndex];
+        [self insertAtIndex:_layerIndex.unsignedIntegerValue];
     }
 }
 
-- (void)setFilter:(NSArray *)filter
-{
-    _filter = filter;
-    
-    if (_styleLayer != nil) {
-        NSPredicate *predicate = [self buildFilters];
-        if (predicate) {
-            [self updateFilter:predicate];
-        }
+- (void)setMap:(RCTMGLMapView *)map {
+    if (map == nil) {
+        [self removeFromMap:_map.style];
+        _map = nil;
+    } else {
+        _map = map;
+        [self addToMap:map style:map.style];
     }
 }
 
@@ -97,6 +94,9 @@
 
 - (void)addToMap:(RCTMGLMapView*) map style:(MGLStyle *)style
 {
+    if (style == nil) {
+        return;
+    }
     _map = map;
     _style = style;
     if (_id == nil) {
@@ -108,6 +108,10 @@
         _styleLayer = existingLayer;
     } else {
         _styleLayer = [self makeLayer:style];
+        if (_styleLayer == nil) {
+            RCTLogError(@"Failed to make layer: %@", _id);
+            return;
+        }
         [self insertLayer: map];
     }
     
@@ -115,14 +119,29 @@
     [self addedToMap];
 }
 
+- (nullable MGLSource*)layerWithSourceIDInStyle:(nonnull MGLStyle*) style
+{
+    MGLSource* result = [style sourceWithIdentifier: self.sourceID];
+    if (result == NULL) {
+        RCTLogError(@"Cannot find layer with id: %@ referenced by layer:%@", self.sourceID, _id);
+    }
+    return result;
+}
+
 - (void)removeFromMap:(MGLStyle *)style
 {
     if (_styleLayer != nil) {
         [style removeLayer:_styleLayer];
     }
+    _style = nil;
 }
 
-- (MGLStyleLayer*)makeLayer:(MGLStyle*)style
+- (BOOL)isAddedToMap
+{
+    return (_style != nil);
+}
+
+- (nullable MGLStyleLayer*)makeLayer:(MGLStyle*)style
 {
     @throw [NSException exceptionWithName:NSInternalInconsistencyException
                         reason:[NSString stringWithFormat:@"You must override %@ in a subclass", NSStringFromSelector(_cmd)]
@@ -141,11 +160,6 @@
     // override if you want
 }
 
-- (void)updateFilter:(NSPredicate *)predicate
-{
-    // override if you want to update the filter
-}
-
 - (void)insertLayer: (RCTMGLMapView*) map
 {
     if ([_style layerWithIdentifier:_id] != nil) {
@@ -157,7 +171,7 @@
     } else if (_belowLayerID != nil) {
         [self insertBelow:_belowLayerID];
     } else if (_layerIndex != nil) {
-        [self insertAtIndex:(NSUInteger)_layerIndex];
+        [self insertAtIndex:_layerIndex.unsignedIntegerValue];
     } else {
         [_style addLayer:_styleLayer];
         [_map layerAdded:_styleLayer];
@@ -183,8 +197,8 @@
         if (![self _hasInitialized]) {
             return;
         }
-        [_style insertLayer:_styleLayer aboveLayer:layer];
-        [_map layerAdded:_styleLayer];
+        [self->_style insertLayer:self->_styleLayer aboveLayer:layer];
+        [self->_map layerAdded:self->_styleLayer];
     }];
 }
 
@@ -195,8 +209,8 @@
             return;
         }
         
-        [_style insertLayer:_styleLayer belowLayer:layer];
-        [_map layerAdded:_styleLayer];
+        [self->_style insertLayer:self->_styleLayer belowLayer:layer];
+        [self->_map layerAdded:self->_styleLayer];
     }];
 }
 
@@ -205,25 +219,13 @@
     if (![self _hasInitialized]) {
         return;
     }
-    [_style insertLayer:_styleLayer atIndex:index];
-    [_map layerAdded:_styleLayer];
-}
-
-- (void)addImage:(NSString *)url
-{
-    if (url == nil) {
-        return;
+    NSArray *layers = _style.layers;
+    if (index >= layers.count) {
+        RCTLogWarn(@"Layer index is greater than number of layers on map. Layer inserted at end of layer stack.");
+        index = layers.count - 1;
     }
-    [RCTMGLUtils fetchImage:_bridge url:url scale:1.0 callback:^(NSError *error, UIImage *image) {
-        if (image != nil) {
-            [_style setImage:image forName:url];
-        }
-    }];
-}
-
-- (NSPredicate*)buildFilters
-{
-    return _filter ? [FilterParser parse:_filter] : nil;
+    [_style insertLayer:self->_styleLayer atIndex:index];
+    [_map layerAdded:self->_styleLayer];
 }
 
 - (BOOL)_hasInitialized

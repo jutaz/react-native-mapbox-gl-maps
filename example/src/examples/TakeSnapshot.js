@@ -20,6 +20,7 @@ const styles = StyleSheet.create({
   snapshot: {
     flex: 1,
   },
+  spinnerContainer: {alignItems: 'center', flex: 1, justifyContent: 'center'},
 });
 
 class TakeSnapshot extends React.Component {
@@ -50,7 +51,7 @@ class TakeSnapshot extends React.Component {
       pitch: 30,
       heading: 20,
       styleURL: MapboxGL.StyleURL.Dark,
-      writeToDisk: true, // creates a temp file
+      writeToDisk: true,
     });
 
     this.setState({snapshotURI: uri});
@@ -61,7 +62,7 @@ class TakeSnapshot extends React.Component {
 
     if (!this.state.snapshotURI) {
       childView = (
-        <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
+        <View style={styles.spinnerContainer}>
           <ActivityIndicator size="large" color="#0000ff" />
           <Text>Generating Snapshot</Text>
         </View>

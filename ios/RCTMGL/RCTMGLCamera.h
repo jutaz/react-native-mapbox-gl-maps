@@ -7,10 +7,11 @@
 //
 #import <React/RCTComponent.h>
 #import <UIKit/UIKit.h>
+#import "RCTMGLMapView.h"
 
 @class RCTMGLMapView;
 
-@interface RCTMGLCamera : UIView
+@interface RCTMGLCamera : UIView<RCTMGLMapViewCamera>
 
 @property (nonatomic, strong) NSDictionary<NSString *, id> *stop;
 @property (nonatomic, strong) NSDictionary<NSString *, id> *defaultStop;
@@ -27,6 +28,8 @@
 
 @property (nonatomic, copy) NSNumber *maxZoomLevel;
 @property (nonatomic, copy) NSNumber *minZoomLevel;
+
+@property (nonatomic, copy) NSString *maxBounds;
 
 @property (nonatomic, copy) NSString *alignment;
 @property (nonatomic, copy, readonly) NSNumber *cameraAnimationMode;

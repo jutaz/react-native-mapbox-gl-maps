@@ -46,6 +46,11 @@
     [self _updateMinMaxZoomLevel];
 }
 
+- (void)setMaxBounds:(NSString *)maxBounds {
+    _maxBounds = maxBounds;
+    [self _updateMaxBounds];
+}
+
 - (void)setDefaultStop:(NSDictionary<NSString *,id> *)stop
 {
     _defaultStop = stop;
@@ -68,6 +73,7 @@
 
     [self _setInitialCamera];
     [self _updateMinMaxZoomLevel];
+    [self _updateMaxBounds];
     [self _updateCamera];
 }
 
@@ -114,8 +120,14 @@
     if (_map != nil && _map.userTrackingMode != MGLUserTrackingModeNone) {
         _map.userTrackingMode = MGLUserTrackingModeNone;
     }
-    
-    [cameraUpdateQueue enqueue:[CameraStop fromDictionary:_stop]];
+    if (_stop[@"stops"]) {
+        NSArray* stops = _stop[@"stops"];
+        for (NSDictionary* stop in stops) {
+            [cameraUpdateQueue enqueue:[CameraStop fromDictionary:stop]];
+        }
+    } else {
+        [cameraUpdateQueue enqueue:[CameraStop fromDictionary:_stop]];
+    }
     [cameraUpdateQueue execute:_map];
 }
 
@@ -156,9 +168,21 @@
     }
 }
 
+- (void)_updateMaxBounds
+{
+    if (_map != nil) {
+        if (_maxBounds) {
+            _map.maxBounds = [RCTMGLUtils fromFeatureCollection:_maxBounds];
+        }
+    }
+}
+
 - (void)_updateCameraFromTrackingMode
 {
-    if (!_followUserLocation || _map == nil) {
+    if (_map == nil) {
+          return;
+    }
+    if (!_followUserLocation) {
         _map.userTrackingMode = MGLUserTrackingModeNone;
         return;
     }
@@ -192,7 +216,7 @@
 
 - (NSUInteger)_userTrackingMode
 {
-    if ([_followUserMode isEqualToString:@"heading"]) {
+    if ([_followUserMode isEqualToString:@"compass"]) {
         return MGLUserTrackingModeFollowWithHeading;
     } else if ([_followUserMode isEqualToString:@"course"]) {
         return MGLUserTrackingModeFollowWithCourse;

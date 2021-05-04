@@ -1,32 +1,18 @@
 import React from 'react';
 import MapboxGL from '@react-native-mapbox-gl/maps';
-import {
-  FlatList,
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
-  YellowBox,
-} from 'react-native';
-import {Icon} from 'react-native-elements';
-import SafeAreaView from 'react-native-safe-area-view';
-import {createStackNavigator} from 'react-navigation';
-import CardStackStyleInterpolator from 'react-navigation-stack/dist/views/StackView/StackViewStyleInterpolator';
+import {StyleSheet, Text, View, LogBox, SafeAreaView} from 'react-native';
+import {createStackNavigator, TransitionPresets} from 'react-navigation-stack';
+import {createAppContainer} from 'react-navigation';
+import Icon from 'react-native-vector-icons/MaterialIcons';
 
-// Styles
 import sheet from './styles/sheet';
 import colors from './styles/colors';
-// Utils
 import {IS_ANDROID} from './utils';
 import config from './utils/config';
-
-// screens
 import Home from './scenes/Home';
 import Demo from './scenes/Demo';
 
-// :(
-YellowBox.ignoreWarnings([
+LogBox.ignoreLogs([
   'Warning: isMounted(...) is deprecated',
   'Module RCTImageLoader',
 ]);
@@ -40,24 +26,26 @@ const styles = StyleSheet.create({
 
 MapboxGL.setAccessToken(config.get('accessToken'));
 
+Icon.loadFont();
+
 const AppStackNavigator = createStackNavigator(
   {
     Home: {screen: Home},
     Demo: {screen: Demo},
+    Group: {screen: Home},
   },
   {
     initialRouteName: 'Home',
 
     navigationOptions: {
-      header: null,
+      ...TransitionPresets.SlideFromRightIOS,
     },
-
-    transitionConfig: () => ({
-      screenInterpolator: props =>
-        CardStackStyleInterpolator.forVertical(props),
-    }),
+    defaultNavigationOptions: {
+      headerShown: false,
+    },
   },
 );
+const AppContainer = createAppContainer(AppStackNavigator);
 
 class App extends React.Component {
   constructor(props) {
@@ -88,8 +76,7 @@ class App extends React.Component {
       return (
         <SafeAreaView
           style={[sheet.matchParent, {backgroundColor: colors.primary.blue}]}
-          forceInset={{top: 'always'}}
-        >
+          forceInset={{top: 'always'}}>
           <View style={sheet.matchParent}>
             <Text style={styles.noPermissionsText}>
               You need to accept location permissions in order to use this
@@ -99,7 +86,7 @@ class App extends React.Component {
         </SafeAreaView>
       );
     }
-    return <AppStackNavigator />;
+    return <AppContainer />;
   }
 }
 

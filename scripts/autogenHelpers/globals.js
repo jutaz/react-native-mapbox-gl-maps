@@ -38,6 +38,7 @@ const iosSpecOverrides = {
   'text-translate': 'text-translation',
   'text-translate-anchor': 'text-translation-anchor',
   'raster-resampling': 'raster-resampling-mode',
+  'text-writing-mode': 'text-writing-modes',
 };
 
 global.getValue = function(value, defaultValue) {
@@ -206,6 +207,10 @@ global.jsStyleType = function(prop) {
     return 'StyleTypes.Image';
   }
 
+  if (prop.type === 'resolvedImage') {
+    return 'StyleTypes.Image';
+  }
+
   if (prop.name.indexOf('Translate') !== -1) {
     return 'StyleTypes.Translation';
   }
@@ -280,9 +285,7 @@ ${startAtSpace(2, '')}`;
 global.jsDocReactProp = function(prop) {
   let propTypes = [];
 
-  if (prop.name.indexOf('Translate') !== -1) {
-    propTypes.push('PropTypes.arrayOf(PropTypes.number)');
-  } else if (prop.type === 'color') {
+  if (prop.type === 'color') {
     propTypes.push('PropTypes.string');
   } else if (prop.type === 'array') {
     switch (prop.value) {
@@ -302,7 +305,11 @@ global.jsDocReactProp = function(prop) {
   } else if (prop.type === 'boolean') {
     propTypes.push('PropTypes.bool');
   } else if (prop.type === 'enum') {
-    propTypes.push('PropTypes.any');
+    if (prop.doc.values) {
+      propTypes.push(`PropTypes.oneOf([${Object.keys(prop.doc.values).map(v => `'${v}'`).join(', ')}])`);
+    } else {
+      propTypes.push('PropTypes.any');
+    }
   } else {
     // images can be required which result in a number
     if (prop.image) {
@@ -365,9 +372,11 @@ function _propMarkdownTableRows(props, prefix = "") {
       if (typeof(type) === "object") {
         type = type.name;
       }
-      let result =  `| ${prefix}${prop.name} | \`${type}\` | \`${prop.default}\` | \`${
+      let defaultValue = prop.default || '';
+      let { description = '' } = prop;
+      let result =  `| ${prefix}${prop.name} | \`${type}\` | \`${defaultValue}\` | \`${
         prop.required
-      }\` | ${replaceNewLine(prop.description)} |`;
+      }\` | ${replaceNewLine(description)} |`;
       if (type == "shape") {
         result = `${result}\n${_propMarkdownTableRows(prop.type.value, `&nbsp;&nbsp;${prefix}`)}`
       }

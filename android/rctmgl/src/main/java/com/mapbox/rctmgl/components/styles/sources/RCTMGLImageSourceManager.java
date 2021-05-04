@@ -17,7 +17,7 @@ import com.mapbox.rctmgl.utils.GeoJSONUtils;
  */
 
 public class RCTMGLImageSourceManager extends ViewGroupManager<RCTMGLImageSource> {
-    final String REACT_CLASS = RCTMGLImageSource.class.getSimpleName();
+    public static final String REACT_CLASS = "RCTMGLImageSource";
 
     @Override
     public String getName() {
@@ -56,7 +56,7 @@ public class RCTMGLImageSourceManager extends ViewGroupManager<RCTMGLImageSource
 
     @ReactProp(name = "url")
     public void setUrl(RCTMGLImageSource source, String url) {
-        source .setURL(url);
+        source.setURL(url);
     }
 
     @ReactProp(name = "coordinates")

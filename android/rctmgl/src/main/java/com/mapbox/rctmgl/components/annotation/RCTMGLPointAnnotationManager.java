@@ -1,6 +1,9 @@
 package com.mapbox.rctmgl.components.annotation;
 
+import androidx.annotation.Nullable;
+
 import com.facebook.react.bridge.ReactApplicationContext;
+import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.common.MapBuilder;
 import com.facebook.react.uimanager.ThemedReactContext;
@@ -16,7 +19,7 @@ import java.util.Map;
  */
 
 public class RCTMGLPointAnnotationManager extends AbstractEventEmitter<RCTMGLPointAnnotation> {
-    public static final String REACT_CLASS = RCTMGLPointAnnotation.class.getSimpleName();
+    public static final String REACT_CLASS = "RCTMGLPointAnnotation";
 
     public RCTMGLPointAnnotationManager(ReactApplicationContext reactApplicationContext) {
         super(reactApplicationContext);
@@ -27,6 +30,20 @@ public class RCTMGLPointAnnotationManager extends AbstractEventEmitter<RCTMGLPoi
         return MapBuilder.<String, String>builder()
                 .put(EventKeys.POINT_ANNOTATION_SELECTED, "onMapboxPointAnnotationSelected")
                 .put(EventKeys.POINT_ANNOTATION_DESELECTED, "onMapboxPointAnnotationDeselected")
+                .put(EventKeys.POINT_ANNOTATION_DRAG_START, "onMapboxPointAnnotationDragStart")
+                .put(EventKeys.POINT_ANNOTATION_DRAG, "onMapboxPointAnnotationDrag")
+                .put(EventKeys.POINT_ANNOTATION_DRAG_END, "onMapboxPointAnnotationDragEnd")
+                .build();
+    }
+
+    //region React Methods
+    public static final int METHOD_REFRESH = 2;
+
+    @Nullable
+    @Override
+    public Map<String, Integer> getCommandsMap() {
+        return MapBuilder.<String, Integer>builder()
+                .put("refresh", METHOD_REFRESH)
                 .build();
     }
 
@@ -45,16 +62,6 @@ public class RCTMGLPointAnnotationManager extends AbstractEventEmitter<RCTMGLPoi
         annotation.setID(id);
     }
 
-    @ReactProp(name="title")
-    public void setTitle(RCTMGLPointAnnotation annotation, String title) {
-        annotation.setTitle(title);
-    }
-
-    @ReactProp(name="snippet")
-    public void setSnippet(RCTMGLPointAnnotation annotation, String snippet) {
-        annotation.setSnippet(snippet);
-    }
-
     @ReactProp(name="coordinate")
     public void setCoordinate(RCTMGLPointAnnotation annotation, String geoJSONStr) {
         annotation.setCoordinate(GeoJSONUtils.toPointGeometry(geoJSONStr));
@@ -65,8 +72,17 @@ public class RCTMGLPointAnnotationManager extends AbstractEventEmitter<RCTMGLPoi
         annotation.setAnchor((float) map.getDouble("x"), (float) map.getDouble("y"));
     }
 
-    @ReactProp(name="selected")
-    public void setSelected(RCTMGLPointAnnotation annotation, boolean isSelected) {
-        annotation.setReactSelected(isSelected);
+    @ReactProp(name="draggable")
+    public void setDraggable(RCTMGLPointAnnotation annotation, Boolean draggable) {
+        annotation.setDraggable(draggable);
+    }
+
+    @Override
+    public void receiveCommand(RCTMGLPointAnnotation annotation, int commandID, @Nullable ReadableArray args) {
+        switch (commandID) {
+            case METHOD_REFRESH:
+                annotation.refresh();
+                break;
+        }
     }
 }

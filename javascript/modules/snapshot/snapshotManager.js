@@ -24,10 +24,10 @@ class SnapshotManager {
    *   pitch: 30,
    *   heading: 20,
    *   styleURL: MapboxGL.StyleURL.Dark,
-   *   writeToDisk: true, // creates a temp file
+   *   writeToDisk: true, // Create a temporary file
    * });
    *
-   * // creates base64 png of base map
+   * // creates base64 png of base map without logo
    * const uri = await MapboxGL.snapshotManager.takeSnap({
    *   centerCoordinate: [-74.126410, 40.797968],
    *   width: width,
@@ -36,6 +36,7 @@ class SnapshotManager {
    *   pitch: 30,
    *   heading: 20,
    *   styleURL: MapboxGL.StyleURL.Dark,
+   *   withLogo: false, // Disable Mapbox logo (Android only)
    * });
    *
    * // creates snapshot with bounds
@@ -49,17 +50,11 @@ class SnapshotManager {
    * @param  {SnapshotOptions}  options Snapshot options for create a static image of the base map
    * @return {Promise}
    */
-  takeSnap(options = {}) {
+  async takeSnap(options = {}) {
     const snapshotOptions = new SnapshotOptions(options);
 
-    return new Promise(async (resolve, reject) => {
-      try {
-        const uri = await MapboxGLSnapshotManger.takeSnap(snapshotOptions);
-        resolve(uri);
-      } catch (e) {
-        reject(e);
-      }
-    });
+    const uri = await MapboxGLSnapshotManger.takeSnap(snapshotOptions);
+    return uri;
   }
 }
 

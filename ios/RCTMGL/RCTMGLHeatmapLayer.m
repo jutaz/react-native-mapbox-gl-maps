@@ -9,33 +9,12 @@
 
 @implementation RCTMGLHeatmapLayer
 
-- (void)updateFilter:(NSPredicate *)predicate
-{
-    ((MGLHeatmapStyleLayer *) self.styleLayer).predicate = predicate;
-}
-
-- (void)setSourceLayerID:(NSString *)sourceLayerID
-{
-    _sourceLayerID = sourceLayerID;
-    
-    if (self.styleLayer != nil) {
-        ((MGLHeatmapStyleLayer*) self.styleLayer).sourceLayerIdentifier = _sourceLayerID;
-    }
-}
-
-- (void)addedToMap
-{
-    NSPredicate *filter = [self buildFilters];
-    if (filter != nil) {
-        [self updateFilter:filter];
-    }
-}
-
 - (MGLHeatmapStyleLayer*)makeLayer:(MGLStyle*)style
 {
-    MGLSource *source = [style sourceWithIdentifier:self.sourceID];
+    MGLSource *source = [self layerWithSourceIDInStyle:style];
+    if (source == nil) { return nil; }
     MGLHeatmapStyleLayer *layer = [[MGLHeatmapStyleLayer alloc] initWithIdentifier:self.id source:source];
-    layer.sourceLayerIdentifier = _sourceLayerID;
+    layer.sourceLayerIdentifier = self.sourceLayerID;
     return layer;
 }
 
@@ -43,7 +22,9 @@
 {
     RCTMGLStyle *style = [[RCTMGLStyle alloc] initWithMGLStyle:self.style];
     style.bridge = self.bridge;
-    [style heatmapLayer:(MGLHeatmapStyleLayer *)self.styleLayer withReactStyle:self.reactStyle];
+    [style heatmapLayer:(MGLHeatmapStyleLayer *)self.styleLayer withReactStyle:self.reactStyle isValid:^{
+        return [self isAddedToMap];
+    }];
 }
 
 @end

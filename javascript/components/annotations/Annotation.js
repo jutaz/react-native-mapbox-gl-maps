@@ -2,23 +2,20 @@ import React from 'react';
 import {Easing} from 'react-native';
 import PropTypes from 'prop-types';
 
-import MapboxGL from '../../index';
-import AnimatedPoint from '../../utils/AnimatedPoint';
+import SymbolLayer from '../SymbolLayer';
+import Animated from '../../utils/animated/Animated';
+import AnimatedMapPoint from '../../utils/animated/AnimatedPoint';
 
 class Annotation extends React.Component {
   static propTypes = {
     id: PropTypes.string.isRequired,
-
     animated: PropTypes.bool,
-
     animationDuration: PropTypes.number,
-
     animationEasingFunction: PropTypes.func,
-
     coordinates: PropTypes.arrayOf(PropTypes.number),
-
     onPress: PropTypes.func,
-
+    children: PropTypes.any,
+    style: PropTypes.any,
     icon: PropTypes.oneOfType([
       PropTypes.string,
       PropTypes.number,
@@ -38,7 +35,7 @@ class Annotation extends React.Component {
     const shape = this._getShapeFromProps(props);
 
     this.state = {
-      shape: props.animated ? new AnimatedPoint(shape) : shape,
+      shape: props.animated ? new AnimatedMapPoint(shape) : shape,
     };
 
     this.onPress = this.onPress.bind(this);
@@ -73,7 +70,7 @@ class Annotation extends React.Component {
       const shape = this._getShapeFromProps(this.props);
 
       this.setState({
-        shape: this.props.animated ? new AnimatedPoint(shape) : shape,
+        shape: this.props.animated ? new AnimatedMapPoint(shape) : shape,
       });
     }
   }
@@ -92,7 +89,7 @@ class Annotation extends React.Component {
 
   get symbolStyle() {
     if (!this.props.icon) {
-      return;
+      return undefined;
     }
     return Object.assign({}, this.props.style, {
       iconImage: this.props.icon,
@@ -105,20 +102,20 @@ class Annotation extends React.Component {
     }
 
     return (
-      <MapboxGL.Animated.ShapeSource
+      <Animated.ShapeSource
         id={this.props.id}
         ref="source"
         onPress={this.onPress}
         shape={this.state.shape}
       >
         {this.symbolStyle && (
-          <MapboxGL.SymbolLayer
+          <SymbolLayer
             id={`${this.props.id}-symbol`}
             style={this.symbolStyle}
           />
         )}
         {this.props.children}
-      </MapboxGL.Animated.ShapeSource>
+      </Animated.ShapeSource>
     );
   }
 }

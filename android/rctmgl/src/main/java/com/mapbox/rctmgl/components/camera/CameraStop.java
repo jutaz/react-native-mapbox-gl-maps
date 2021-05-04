@@ -1,7 +1,7 @@
 package com.mapbox.rctmgl.components.camera;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 import android.util.DisplayMetrics;
 
 import com.facebook.react.bridge.ReadableMap;
@@ -15,6 +15,8 @@ import com.mapbox.mapboxsdk.geometry.LatLngBounds;
 import com.mapbox.mapboxsdk.maps.MapboxMap;
 import com.mapbox.rctmgl.components.camera.constants.CameraMode;
 import com.mapbox.rctmgl.utils.GeoJSONUtils;
+
+import com.mapbox.rctmgl.components.mapview.RCTMGLMapView;
 
 /**
  * Created by nickitaliano on 9/5/17.
@@ -30,13 +32,14 @@ public class CameraStop {
     private int mBoundsPaddingLeft = 0;
     private int mBoundsPaddingRight = 0;
     private int mBoundsPaddingBottom = 0;
-    private int mBooundsPaddingTop = 0;
+    private int mBoundsPaddingTop = 0;
 
     private int mMode = CameraMode.EASE;
     private int mDuration = 2000;
     private MapboxMap.CancelableCallback mCallback;
 
-    public CameraStop() {}
+    public CameraStop() {
+    }
 
     public void setBearing(double bearing) {
         mBearing = bearing;
@@ -66,7 +69,7 @@ public class CameraStop {
         mBounds = bounds;
         mBoundsPaddingLeft = paddingLeft;
         mBoundsPaddingRight = paddingRight;
-        mBooundsPaddingTop = paddingTop;
+        mBoundsPaddingTop = paddingTop;
         mBoundsPaddingBottom = paddingBottom;
     }
 
@@ -74,7 +77,8 @@ public class CameraStop {
         mMode = mode;
     }
 
-    public CameraUpdateItem toCameraUpdate(MapboxMap map) {
+    public CameraUpdateItem toCameraUpdate(RCTMGLMapView mapView) {
+        MapboxMap map = mapView.getMapboxMap();
         CameraPosition currentCamera = map.getCameraPosition();
         CameraPosition.Builder builder = new CameraPosition.Builder(currentCamera);
 
@@ -91,14 +95,32 @@ public class CameraStop {
         } else if (mBounds != null) {
             double tilt = mTilt != null ? mTilt : currentCamera.tilt;
             double bearing = mBearing != null ? mBearing : currentCamera.bearing;
-            int[] cameraPadding = {mBoundsPaddingLeft, mBooundsPaddingTop, mBoundsPaddingRight, mBoundsPaddingBottom};
-            CameraPosition boundsCamera = map.getCameraForLatLngBounds(mBounds, cameraPadding, bearing, tilt);
+
+            // Adding map padding to the camera padding which is the same behavior as
+            // mapbox native does on iOS
+            double[] contentInset = mapView.getContentInset();
+
+            int paddingLeft = Double.valueOf(contentInset[0] + mBoundsPaddingLeft).intValue();
+            int paddingTop = Double.valueOf(contentInset[1] + mBoundsPaddingTop).intValue();
+            int paddingRight = Double.valueOf(contentInset[2] + mBoundsPaddingRight).intValue();
+            int paddingBottom = Double.valueOf(contentInset[3] + mBoundsPaddingBottom).intValue();
+
+            int[] cameraPadding = {paddingLeft, paddingTop, paddingRight, paddingBottom};
+            int[] cameraPaddingClipped = clippedPadding(cameraPadding, mapView);
+
+            CameraPosition boundsCamera = map.getCameraForLatLngBounds(mBounds, cameraPaddingClipped, bearing, tilt);
             if (boundsCamera != null) {
                 builder.target(boundsCamera.target);
                 builder.zoom(boundsCamera.zoom);
+                builder.padding(boundsCamera.padding);
             } else {
-                CameraUpdate update = CameraUpdateFactory.newLatLngBounds(mBounds, mBoundsPaddingLeft,
-                        mBooundsPaddingTop, mBoundsPaddingRight, mBoundsPaddingBottom);
+                CameraUpdate update = CameraUpdateFactory.newLatLngBounds(
+                        mBounds,
+                        cameraPaddingClipped[0],
+                        cameraPaddingClipped[1],
+                        cameraPaddingClipped[2],
+                        cameraPaddingClipped[3]
+                );
                 return new CameraUpdateItem(map, update, mDuration, mCallback, mMode);
             }
         }
@@ -167,6 +189,37 @@ public class CameraStop {
 
         stop.setCallback(callback);
         return stop;
+    }
+
+    private static int[] clippedPadding(int[] padding, RCTMGLMapView mapView) {
+        int mapHeight = mapView.getHeight();
+        int mapWidth = mapView.getWidth();
+
+        int left = padding[0];
+        int top = padding[1];
+        int right = padding[2];
+        int bottom = padding[3];
+
+        int resultLeft = left;
+        int resultTop = top;
+        int resultRight = right;
+        int resultBottom = bottom;
+
+        if (top + bottom >= mapHeight) {
+            double totalPadding = top + bottom;
+            double extra = totalPadding - mapHeight + 1.0; // add 1 to compensate for floating point math
+            resultTop -= (top * extra) / totalPadding;
+            resultBottom -= (bottom * extra) / totalPadding;
+        }
+
+        if (left + right >= mapWidth) {
+            double totalPadding = left + right;
+            double extra = totalPadding - mapWidth + 1.0; // add 1 to compensate for floating point math
+            resultLeft -= (left * extra) / totalPadding;
+            resultRight -= (right * extra) / totalPadding;
+        }
+
+        return new int[] {resultLeft, resultTop, resultRight, resultBottom};
     }
 
     private static int getBoundsPaddingByKey(ReadableMap map, String key) {

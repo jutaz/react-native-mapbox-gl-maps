@@ -68,6 +68,30 @@ class OfflineManager {
   }
 
   /**
+   * Invalidates the specified offline pack. This method checks that the tiles in the specified offline pack match those from the server. Local tiles that do not match the latest version on the server are updated.
+   *
+   * This is more efficient than deleting the offline pack and downloading it again. If the data stored locally matches that on the server, new data will not be downloaded.
+   *
+   * @example
+   * await MapboxGL.offlineManager.invalidatePack('packName')
+   *
+   * @param  {String}  name  Name of the offline pack.
+   * @return {void}
+   */
+  async invalidatePack(name) {
+    if (!name) {
+      return;
+    }
+
+    await this._initialize();
+
+    const offlinePack = this._offlinePacks[name];
+    if (offlinePack) {
+      await MapboxGLOfflineManager.invalidatePack(name);
+    }
+  }
+
+  /**
    * Unregisters the given offline pack and allows resources that are no longer required by any remaining packs to be potentially freed.
    *
    * @example
@@ -91,6 +115,64 @@ class OfflineManager {
   }
 
   /**
+   * Forces a revalidation of the tiles in the ambient cache and downloads a fresh version of the tiles from the tile server.
+   * This is the recommend method for clearing the cache.
+   * This is the most efficient method because tiles in the ambient cache are re-downloaded to remove outdated data from a device.
+   * It does not erase resources from the ambient cache or delete the database, which can be computationally expensive operations that may carry unintended side effects.
+   *
+   * @example
+   * await MapboxGL.offlineManager.invalidateAmbientCache();
+   *
+   * @return {void}
+   */
+  async invalidateAmbientCache() {
+    await this._initialize();
+    await MapboxGLOfflineManager.invalidateAmbientCache();
+  }
+
+  /**
+   * Erases resources from the ambient cache.
+   * This method clears the cache and decreases the amount of space that map resources take up on the device.
+   *
+   * @example
+   * await MapboxGL.offlineManager.clearAmbientCache();
+   *
+   * @return {void}
+   */
+  async clearAmbientCache() {
+    await this._initialize();
+    await MapboxGLOfflineManager.clearAmbientCache();
+  }
+
+  /**
+   * Sets the maximum size of the ambient cache in bytes. Disables the ambient cache if set to 0.
+   * This method may be computationally expensive because it will erase resources from the ambient cache if its size is decreased.
+   *
+   * @example
+   * await MapboxGL.offlineManager.setMaximumAmbientCacheSize(5000000);
+   *
+   * @param  {Number}  size  Size of ambient cache.
+   * @return {void}
+   */
+  async setMaximumAmbientCacheSize(size) {
+    await this._initialize();
+    await MapboxGLOfflineManager.setMaximumAmbientCacheSize(size);
+  }
+
+  /**
+   * Deletes the existing database, which includes both the ambient cache and offline packs, then reinitializes it.
+   *
+   * @example
+   * await MapboxGL.offlineManager.resetDatabase();
+   *
+   * @return {void}
+   */
+  async resetDatabase() {
+    await this._initialize();
+    await MapboxGLOfflineManager.resetDatabase();
+  }
+
+  /**
    * Retrieves all the current offline packs that are stored in the database.
    *
    * @example
@@ -101,7 +183,7 @@ class OfflineManager {
   async getPacks() {
     await this._initialize();
     return Object.keys(this._offlinePacks).map(
-      name => this._offlinePacks[name],
+      (name) => this._offlinePacks[name],
     );
   }
 
@@ -117,6 +199,20 @@ class OfflineManager {
   async getPack(name) {
     await this._initialize();
     return this._offlinePacks[name];
+  }
+
+  /**
+   * Sideloads offline db
+   *
+   * @example
+   * await MapboxGL.offlineManager.mergeOfflineRegions(path);
+   *
+   * @param {String} path Path to offline tile db on file system.
+   * @return {void}
+   */
+  async mergeOfflineRegions(path) {
+    await this._initialize();
+    return MapboxGLOfflineManager.mergeOfflineRegions(path);
   }
 
   /**
@@ -225,27 +321,20 @@ class OfflineManager {
     }
   }
 
-  _initialize() {
-    return new Promise(async (resolve, reject) => {
-      if (this._hasInitialized) {
-        return resolve(true);
-      }
+  async _initialize() {
+    if (this._hasInitialized) {
+      return true;
+    }
 
-      try {
-        const nativeOfflinePacks = await MapboxGLOfflineManager.getPacks();
+    const nativeOfflinePacks = await MapboxGLOfflineManager.getPacks();
 
-        for (const nativeOfflinePack of nativeOfflinePacks) {
-          const offlinePack = new OfflinePack(nativeOfflinePack);
-          this._offlinePacks[offlinePack.name] = offlinePack;
-        }
-      } catch (e) {
-        reject(e);
-        return;
-      }
+    for (const nativeOfflinePack of nativeOfflinePacks) {
+      const offlinePack = new OfflinePack(nativeOfflinePack);
+      this._offlinePacks[offlinePack.name] = offlinePack;
+    }
 
-      this._hasInitialized = true;
-      return resolve(true);
-    });
+    this._hasInitialized = true;
+    return true;
   }
 
   _onProgress(e) {

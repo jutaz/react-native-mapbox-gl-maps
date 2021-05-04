@@ -21,6 +21,7 @@ const styles = {
     fillColor: 'green',
     fillOpacity: 0.84,
   },
+  bubbleText: {textAlign: 'center'},
 };
 
 class QueryWithRect extends React.Component {
@@ -82,11 +83,10 @@ class QueryWithRect extends React.Component {
     return (
       <Page {...this.props}>
         <MapboxGL.MapView
-          ref={c => (this._map = c)}
+          ref={(c) => (this._map = c)}
           onPress={this.onPress}
           style={sheet.matchParent}
-          styleURL={MapboxGL.StyleURL.Light}
-        >
+          styleURL={MapboxGL.StyleURL.Light}>
           <MapboxGL.Camera
             zoomLevel={9}
             centerCoordinate={[-73.970895, 40.723279]}
@@ -99,8 +99,7 @@ class QueryWithRect extends React.Component {
           {this.state.selectedGeoJSON ? (
             <MapboxGL.ShapeSource
               id="selectedNYC"
-              shape={this.state.selectedGeoJSON}
-            >
+              shape={this.state.selectedGeoJSON}>
               <MapboxGL.FillLayer
                 id="selectedNYCFill"
                 style={styles.selectedNeighborhood}
@@ -110,7 +109,7 @@ class QueryWithRect extends React.Component {
         </MapboxGL.MapView>
 
         <Bubble>
-          <Text style={{textAlign: 'center'}}>{this.message}</Text>
+          <Text style={styles.bubbleText}>{this.message}</Text>
         </Bubble>
       </Page>
     );

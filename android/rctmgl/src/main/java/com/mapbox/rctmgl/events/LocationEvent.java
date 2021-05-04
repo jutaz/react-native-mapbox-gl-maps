@@ -1,7 +1,7 @@
 package com.mapbox.rctmgl.events;
 
 import android.location.Location;
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.WritableMap;
@@ -88,5 +88,10 @@ public class LocationEvent implements IEvent {
         map.putString("type", getType());
         map.putMap("payload", getPayload());
         return map;
+    }
+
+    @Override
+    public boolean canCoalesce() {
+        return true;
     }
 }

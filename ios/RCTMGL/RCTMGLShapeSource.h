@@ -17,8 +17,6 @@
 
 @property (nonatomic, copy) NSString *url;
 @property (nonatomic, copy) NSString *shape;
-@property (nonatomic, strong) NSDictionary<NSString *, NSString *> *images;
-@property (nonatomic, strong) NSArray<NSString *> *nativeImages;
 
 @property (nonatomic, strong) NSNumber *cluster;
 @property (nonatomic, strong) NSNumber *clusterRadius;
@@ -26,11 +24,9 @@
 
 @property (nonatomic, strong) NSNumber *maxZoomLevel;
 @property (nonatomic, strong) NSNumber *buffer;
-@property (nonatomic, strong) NSNumber *tolerence;
+@property (nonatomic, strong) NSNumber *tolerance;
 
 @property (nonatomic, copy) RCTBubblingEventBlock onPress;
 @property (nonatomic, assign) BOOL hasPressListener;
-
--(BOOL)addMissingImageToStyle:(NSString *)imageName;
 
 @end

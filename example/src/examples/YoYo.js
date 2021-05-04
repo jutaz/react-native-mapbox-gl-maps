@@ -58,10 +58,9 @@ class YoYo extends React.Component {
     return (
       <Page {...this.props}>
         <MapboxGL.MapView
-          ref={ref => (this.map = ref)}
+          ref={(ref) => (this.map = ref)}
           style={sheet.matchParent}
-          styleURL={MapboxGL.StyleURL.Dark}
-        >
+          styleURL={MapboxGL.StyleURL.Dark}>
           <MapboxGL.Camera
             zoomLevel={this.state.zoomLevel}
             centerCoordinate={SF_OFFICE_COORDINATE}

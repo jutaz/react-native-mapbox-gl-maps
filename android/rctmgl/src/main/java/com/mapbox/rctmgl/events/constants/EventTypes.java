@@ -32,6 +32,9 @@ public class EventTypes {
     // point annotation event types
     public static final String ANNOTATION_SELECTED = "annotationselected";
     public static final String ANNOTATION_DESELECTED = "annotationdeselected";
+    public static final String ANNOTATION_DRAG_START = "annotationdragstart";
+    public static final String ANNOTATION_DRAG = "annotationdrag";
+    public static final String ANNOTATION_DRAG_END = "annotationdragend";
 
     // offline event types
     public static final String OFFLINE_ERROR = "offlineerror";
@@ -42,4 +45,7 @@ public class EventTypes {
     public static final String SHAPE_SOURCE_LAYER_CLICK = "shapesourcelayerpress";
     public static final String VECTOR_SOURCE_LAYER_CLICK = "vectorsourcelayerpress";
     public static final String RASTER_SOURCE_LAYER_CLICK = "rastersourcelayerpress";
+
+    // image missing event type
+    public static final String IMAGES_MISSING = "imagesmissing";
 }
